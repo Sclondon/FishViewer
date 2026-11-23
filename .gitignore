@@ -1,0 +1,4 @@
+.godot/
+*.blend1
+tests/shots_*/
+build/*.import
