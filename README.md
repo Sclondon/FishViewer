@@ -1,5 +1,7 @@
 # Fish Viewer
 
+Live: https://sclondon.github.io/FishViewer/build/index.html (regular arcade cart "Fish Viewer", no scores; after a change: export, push, bump the cart's `?v=` in the site's games.tsx).
+
 Pick any of Gulp's sea life (158 kinds, in 19 groups) and watch it swim about open blue water over sand. Godot 4.7,
 GL Compatibility, portrait phone first (works on desktop). Placeholder name. Asked for by the user on 2026-11-24:
 "Lets also make a web enabled fish viewer, so I can have any of the fish options swim around on my phone".
