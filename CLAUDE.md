@@ -6,7 +6,7 @@ we're low on tokens". README.md has controls, commands and the web build's size.
 
 ## Map
 
-- `scripts/main.gd`: the water (one WorldEnvironment with depth fog, one sun, a sand plane), the camera (drag,
+- `scripts/main.gd`: the water (one WorldEnvironment with depth fog, one sun, the sand floor, the surface overhead, light shafts), the camera (drag,
   pinch, wheel), the list UI, adding and clearing.
 - `scripts/swimmer.gd` (`Swimmer`): one animal: makes its creature (BakedLook), scales it to the kind's length and
   wanders it, driving its clip as Gulp's `Fish.pose` does (`beat`, `swim`/`sway`, `step`, `curl`).

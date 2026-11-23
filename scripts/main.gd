@@ -19,6 +19,11 @@ var _zoom := 1.0
 var _room := 3.0
 var _floor_y := -2.0
 var _floor: MeshInstance3D
+var _sand: ShaderMaterial
+var _surface: MeshInstance3D
+var _water: ShaderMaterial
+var _shafts: Array[MeshInstance3D] = []
+var _surface_y := 4.0
 var _env: Environment
 var _clock := 0.0
 var _touches := {}
@@ -79,23 +84,67 @@ func _build_world() -> void:
 	sun.light_color = Color(1.0, 0.95, 0.85)
 	sun.light_energy = 1.1
 	add_child(sun)
-	# The sand: one plain material lit per vertex (no program of its own beyond Godot's standard one).
+	# The sand (Gulp's sand picture, low dunes, the light's net drifting over it) and, overhead, the
+	# water's surface seen from below: two small shaders of our own (shaders/seabed, shaders/surface).
+	var caustics: Texture2D = preload("res://textures/caustics.png")
 	_floor = MeshInstance3D.new()
 	var plane := PlaneMesh.new()
 	plane.size = Vector2(1.0, 1.0)
-	plane.subdivide_width = 24
-	plane.subdivide_depth = 24
+	plane.subdivide_width = 96
+	plane.subdivide_depth = 96
 	_floor.mesh = plane
-	var sand := StandardMaterial3D.new()
-	sand.albedo_color = Color(0.62, 0.55, 0.4)
-	sand.shading_mode = BaseMaterial3D.SHADING_MODE_PER_VERTEX
-	sand.roughness = 1.0
-	_floor.material_override = sand
+	_sand = ShaderMaterial.new()
+	_sand.shader = preload("res://shaders/seabed.gdshader")
+	_sand.set_shader_parameter(&"sand_tex", preload("res://textures/sand.png"))
+	_sand.set_shader_parameter(&"caustic_tex", caustics)
+	_floor.material_override = _sand
 	_floor.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(_floor)
+	_surface = MeshInstance3D.new()
+	var top := PlaneMesh.new()
+	top.size = Vector2(1.0, 1.0)
+	_surface.mesh = top
+	_water = ShaderMaterial.new()
+	_water.shader = preload("res://shaders/surface.gdshader")
+	_water.set_shader_parameter(&"ripple_tex", caustics)
+	_surface.material_override = _water
+	_surface.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(_surface)
+	_build_shafts()
 	_camera = Camera3D.new()
 	_camera.fov = 60.0
 	add_child(_camera)
+
+
+## A few soft beams of light slanting down from the surface: billboards (turned only about the up axis)
+## drawn additively with Godot's standard material and a little fade picture made here.
+func _build_shafts() -> void:
+	var img := Image.create(32, 64, false, Image.FORMAT_RGBA8)
+	for y in 64:
+		for x in 32:
+			var side := sin(PI * (x + 0.5) / 32.0)
+			var down := 1.0 - (y + 0.5) / 64.0
+			var v := side * side * down * down
+			img.set_pixel(x, y, Color(v, v, v, 1.0))
+	var tex := ImageTexture.create_from_image(img)
+	var quad := QuadMesh.new()
+	for i in 5:
+		var m := StandardMaterial3D.new()
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		m.cull_mode = BaseMaterial3D.CULL_DISABLED
+		m.billboard_mode = BaseMaterial3D.BILLBOARD_FIXED_Y
+		m.disable_fog = true
+		m.billboard_keep_scale = true
+		m.albedo_texture = tex
+		m.albedo_color = Color(0.75, 0.95, 1.0, 0.15)
+		var sh := MeshInstance3D.new()
+		sh.mesh = quad
+		sh.material_override = m
+		sh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(sh)
+		_shafts.append(sh)
 
 
 func _build_ui() -> void:
@@ -240,6 +289,18 @@ func _fit_room() -> void:
 	_floor_y = -_room * 0.55
 	_floor.position.y = _floor_y
 	_floor.scale = Vector3.ONE * _room * 30.0
+	_sand.set_shader_parameter(&"tile", _room * 0.8)
+	_sand.set_shader_parameter(&"caustic_size", _room * 0.9)
+	_surface_y = _room * 2.2
+	_surface.position.y = _surface_y
+	_surface.scale = Vector3.ONE * _room * 30.0
+	_water.set_shader_parameter(&"ripple_size", _room * 1.5)
+	for i in _shafts.size():
+		var a := TAU * i / _shafts.size() + 0.7
+		var r := _room * (1.2 + 0.9 * float(i % 3))
+		var sh := _shafts[i]
+		sh.position = Vector3(cos(a) * r, (_surface_y + _floor_y) * 0.5, sin(a) * r)
+		sh.scale = Vector3(_room * (0.5 + 0.2 * float(i % 2)), _surface_y - _floor_y, 1.0)
 	_env.fog_depth_begin = _room * 2.5
 	_env.fog_depth_end = _room * 9.0
 	_camera.near = clampf(_room * 0.01, 0.01, 0.5)
@@ -259,6 +320,10 @@ func _process(delta: float) -> void:
 	_camera.position = at + off
 	if _camera.position.y < _floor_y + 0.2 * _room:
 		_camera.position.y = _floor_y + 0.2 * _room
+	if _camera.position.y > _surface_y - 0.25 * _room:
+		_camera.position.y = _surface_y - 0.25 * _room
+	for i in _shafts.size():
+		(_shafts[i].material_override as StandardMaterial3D).albedo_color.a = 0.11 + 0.07 * sin(_clock * 0.4 + i * 1.9)
 	_camera.look_at(at, Vector3.UP)
 	# (with the list open, the water shows above it: the point looked at sits higher on the screen)
 	_camera.v_offset = -dist * 0.12 if _list_panel.visible else 0.0
